@@ -3,5 +3,6 @@ from .server import ProxyServer
 from .https_proxy import HTTPSProxy
 from .database import ProxyDatabase
 from .ssl_cert import SSLCertGenerator
+from .filter import FilterManager, FilterRule, FilterAction, FilterType
 
-__all__ = ['ProxyServer', 'HTTPSProxy', 'ProxyDatabase', 'SSLCertGenerator']
+__all__ = ['ProxyServer', 'HTTPSProxy', 'ProxyDatabase', 'SSLCertGenerator', 'FilterManager', 'FilterRule', 'FilterAction', 'FilterType']

@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional, Dict, Callable
 from .ssl_cert import SSLCertGenerator
 from .database import ProxyDatabase
+from .filter import FilterManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 class HTTPSProxy:
     def __init__(self, host: str = '127.0.0.1', port: int = 8080,
-                 db_path: str = None, cert_gen: SSLCertGenerator = None):
+                 db_path: str = None, cert_gen: SSLCertGenerator = None,
+                 filter_manager: FilterManager = None):
         self.host = host
         self.port = port
         self.server_socket: Optional[socket.socket] = None
@@ -28,6 +30,7 @@ class HTTPSProxy:
         self.db: Optional[ProxyDatabase] = None
         self.cert_gen = cert_gen or SSLCertGenerator()
         self.cert_gen.generate_ca()
+        self.filter_manager = filter_manager or FilterManager()
 
         if db_path:
             self.db = ProxyDatabase(db_path)
@@ -181,6 +184,15 @@ class HTTPSProxy:
             target_host = parsed.hostname or target_host
             target_port = parsed.port or 80
 
+        allow, filter_reason = self.filter_manager.should_allow_request(
+            method, url, target_host
+        )
+        if not allow:
+            logger.info(f"Request blocked: {filter_reason}")
+            client_socket.sendall(b"HTTP/1.1 403 Forbidden\r\n\r\n")
+            client_socket.close()
+            return
+
         proxy_request_data = {
             'method': method,
             'url': url,
@@ -216,6 +228,29 @@ class HTTPSProxy:
                     break
 
             server_socket.close()
+
+            content_type = None
+            for header in response.split(b'\r\n'):
+                if header.lower().startswith(b'content-type:'):
+                    content_type = header.decode('utf-8', errors='ignore').split(':', 1)[1].strip()
+                    break
+
+            status_code = 200
+            if b'HTTP/' in response:
+                status_line = response.split(b'\r\n')[0].decode('utf-8', errors='ignore')
+                parts = status_line.split(' ')
+                if len(parts) >= 2:
+                    try:
+                        status_code = int(parts[1])
+                    except:
+                        pass
+
+            allow_resp, filter_reason = self.filter_manager.should_allow_response(status_code, content_type)
+            if not allow_resp:
+                logger.info(f"Response blocked: {filter_reason} (status {status_code})")
+                client_socket.sendall(b"HTTP/1.1 204 No Content\r\nX-Filtered: true\r\n\r\n")
+                client_socket.close()
+                return
 
             proxy_response_data = {
                 'status_code': 200,
