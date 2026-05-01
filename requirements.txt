@@ -16,6 +16,9 @@ lxml>=4.9
 # Database
 sqlalchemy>=2.0
 
+# SSL/TLS
+cryptography>=41.0
+
 # Security testing
 python-regex>=2023.0
 
