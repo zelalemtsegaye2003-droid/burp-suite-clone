@@ -8,6 +8,7 @@ from typing import Optional, Dict, Callable
 from .ssl_cert import SSLCertGenerator
 from .database import ProxyDatabase
 from .filter import FilterManager
+from .chaining import ProxyChain, ProxyChainer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +32,8 @@ class HTTPSProxy:
         self.cert_gen = cert_gen or SSLCertGenerator()
         self.cert_gen.generate_ca()
         self.filter_manager = filter_manager or FilterManager()
+        self.proxy_chain = ProxyChain()
+        self.chainer = ProxyChainer(self.proxy_chain)
 
         if db_path:
             self.db = ProxyDatabase(db_path)
@@ -297,6 +300,13 @@ class HTTPSProxy:
 
     def set_intercept_mode(self, enabled: bool):
         self.intercept_mode = enabled
+
+    def set_upstream_proxy(self, host: str, port: int,
+                          username: Optional[str] = None,
+                          password: Optional[str] = None,
+                          proxy_type: str = "http"):
+        self.proxy_chain.set_upstream_proxy(host, port, username, password, proxy_type)
+        logger.info(f"Upstream proxy set: {host}:{port}")
 
     def on_request(self, callback: Callable):
         self.request_callback = callback
