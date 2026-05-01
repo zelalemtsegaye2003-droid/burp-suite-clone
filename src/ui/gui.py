@@ -32,6 +32,7 @@ from src.scanner import ScannerEngine, get_all_scanners, IssueType, Severity
 from src.intruder import Intruder, AttackMode
 from src.repeater import Repeater, RepeaterRequest
 from src.utils import UtilitiesSuite
+from src.core.scope import TargetManager, ScopeManager
 
 
 class BurpCloneGUI(QMainWindow):
@@ -47,6 +48,7 @@ class BurpCloneGUI(QMainWindow):
         self.repeater = Repeater()
         self.intruder = Intruder()
         self.passive_scanner = PassiveScanner()
+        self.target_manager = TargetManager()
 
         self.setup_ui()
         self.setup_menu()
@@ -672,43 +674,92 @@ class TargetTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
 
-        layout.addWidget(QLabel("Scope"))
+        layout.addWidget(QLabel("🎯 Scope Management"))
 
-        scope_layout = QHBoxLayout()
-        scope_layout.addWidget(QLabel("Include:"))
+        include_layout = QHBoxLayout()
+        include_layout.addWidget(QLabel("Include (regex):"))
         self.include_input = QLineEdit()
         self.include_input.setPlaceholderText(r".*\.example\.com.*")
-        scope_layout.addWidget(self.include_input, 1)
-        layout.addLayout(scope_layout)
+        include_layout.addWidget(self.include_input, 1)
+        self.add_include_btn = QPushButton("+ Add")
+        self.add_include_btn.clicked.connect(self.add_include)
+        include_layout.addWidget(self.add_include_btn)
+        layout.addLayout(include_layout)
 
-        scope_layout2 = QHBoxLayout()
-        scope_layout2.addWidget(QLabel("Exclude:"))
+        self.include_list = QListWidget()
+        layout.addWidget(QLabel("Included Patterns:"))
+        layout.addWidget(self.include_list)
+
+        exclude_layout = QHBoxLayout()
+        exclude_layout.addWidget(QLabel("Exclude (regex):"))
         self.exclude_input = QLineEdit()
         self.exclude_input.setPlaceholderText(".*logout.*")
-        scope_layout2.addWidget(self.exclude_input, 1)
-        layout.addLayout(scope_layout2)
+        exclude_layout.addWidget(self.exclude_input, 1)
+        self.add_exclude_btn = QPushButton("+ Add")
+        self.add_exclude_btn.clicked.connect(self.add_exclude)
+        exclude_layout.addWidget(self.add_exclude_btn)
+        layout.addLayout(exclude_layout)
 
-        layout.addWidget(QLabel("Site Map"))
+        self.exclude_list = QListWidget()
+        layout.addWidget(QLabel("Excluded Patterns:"))
+        layout.addWidget(self.exclude_list)
+
+        scope_buttons = QHBoxLayout()
+        self.clear_scope_btn = QPushButton("Clear All")
+        self.clear_scope_btn.clicked.connect(self.clear_scope)
+        scope_buttons.addWidget(self.clear_scope_btn)
+        scope_buttons.addStretch()
+        layout.addLayout(scope_buttons)
+
+        layout.addWidget(QLabel("📊 Site Map"))
         self.sitemap_table = QTableWidget()
         self.sitemap_table.setColumnCount(4)
-        self.sitemap_table.setHorizontalHeaderLabels(["URL", "Status", "Title", "Issues"])
+        self.sitemap_table.setHorizontalHeaderLabels(["Host", "URL", "Status", "Issues"])
         layout.addWidget(self.sitemap_table)
 
-        layout.addWidget(QLabel("Issue Definitions"))
+        self.refresh_sitemap_btn = QPushButton("🔄 Refresh Site Map")
+        self.refresh_sitemap_btn.clicked.connect(self.refresh_sitemap)
+        layout.addWidget(self.refresh_sitemap_btn)
 
-        self.issue_definitions = QTextEdit()
-        self.issue_definitions.setReadOnly(True)
-        self.issue_definitions.setMaximumHeight(150)
-        self.issue_definitions.setPlainText("""
-XSS (Cross-Site Scripting) - High
-SQL Injection - Critical
-Command Injection - Critical
-SSRF (Server-Side Request Forgery) - High
-XXE (XML External Entity) - High
-IDOR (Insecure Direct Object Reference) - High
-Information Disclosure - Low
-        """.strip())
-        layout.addWidget(self.issue_definitions)
+        stats_layout = QHBoxLayout()
+        self.stats_label = QLabel("Stats: 0 hosts, 0 URLs")
+        stats_layout.addWidget(self.stats_label)
+        stats_layout.addStretch()
+        layout.addLayout(stats_layout)
+
+    def add_include(self):
+        pattern = self.include_input.text()
+        if pattern:
+            self.parent.target_manager.add_target(pattern)
+            self.include_list.addItem(pattern)
+            self.include_input.clear()
+
+    def add_exclude(self):
+        pattern = self.exclude_input.text()
+        if pattern:
+            self.parent.target_manager.add_exclusion(pattern)
+            self.exclude_list.addItem(pattern)
+            self.exclude_input.clear()
+
+    def clear_scope(self):
+        self.parent.target_manager.scope_manager.clear()
+        self.include_list.clear()
+        self.exclude_list.clear()
+        self.sitemap_table.setRowCount(0)
+        self.stats_label.setText("Stats: 0 hosts, 0 URLs")
+
+    def refresh_sitemap(self):
+        urls = self.parent.target_manager.sitemap.nodes
+
+        self.sitemap_table.setRowCount(len(urls))
+        for i, (url, node) in enumerate(urls.items()):
+            self.sitemap_table.setItem(i, 0, QTableWidgetItem(node.host))
+            self.sitemap_table.setItem(i, 1, QTableWidgetItem(url))
+            self.sitemap_table.setItem(i, 2, QTableWidgetItem(str(node.status_code)))
+            self.sitemap_table.setItem(i, 3, QTableWidgetItem(str(node.issues)))
+
+        summary = self.parent.target_manager.get_sitemap_summary()
+        self.stats_label.setText(f"Stats: {summary['hosts']} hosts, {summary['total_urls']} URLs")
 
 
 def main():
