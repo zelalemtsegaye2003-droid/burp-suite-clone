@@ -6,6 +6,7 @@ from .hex_view import HexViewRenderer, HexEditor, HexViewer
 from .message_viewer import MessageViewer, ViewMode
 from .editor import RequestEditor, ResponseEditor, MessageEditor, BatchEditor
 from .formats import JSONFormatter, HTMLFormatter, XMLFormatter, ImagePreview, FormatDetector
+from .dashboard import Dashboard, WebDashboard
 
 __all__ = [
     'HistoryViewer', 'HistoryTableDisplay',
@@ -14,5 +15,6 @@ __all__ = [
     'HexViewRenderer', 'HexEditor', 'HexViewer',
     'MessageViewer', 'ViewMode',
     'RequestEditor', 'ResponseEditor', 'MessageEditor', 'BatchEditor',
-    'JSONFormatter', 'HTMLFormatter', 'XMLFormatter', 'ImagePreview', 'FormatDetector'
+    'JSONFormatter', 'HTMLFormatter', 'XMLFormatter', 'ImagePreview', 'FormatDetector',
+    'Dashboard', 'WebDashboard'
 ]
