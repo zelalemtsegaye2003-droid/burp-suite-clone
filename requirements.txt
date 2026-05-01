@@ -1,0 +1,28 @@
+# Core HTTP
+requests>=2.31.0
+httpx>=0.25.0
+
+# Proxy
+mitmproxy>=10.0
+ Twisted>=22.10
+
+# UI
+PyQt6>=6.5
+
+# Parsing
+beautifulsoup4>=4.12
+lxml>=4.9
+
+# Database
+sqlalchemy>=2.0
+
+# Security testing
+python-regex>=2023.0
+
+# Utilities
+colorama>=0.4
+tabulate>=0.9
+
+# Testing
+pytest>=7.4
+pytest-cov>=4.1
