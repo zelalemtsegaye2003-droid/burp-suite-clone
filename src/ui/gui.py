@@ -26,7 +26,7 @@ project_root = os.path.dirname(script_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.proxy import HTTPSProxy, ProxyDatabase
+from src.proxy import HTTPSProxy, ProxyDatabase, PassiveScanner
 from src.spider import Spider, CrawlConfig
 from src.scanner import ScannerEngine, get_all_scanners, IssueType, Severity
 from src.intruder import Intruder, AttackMode
@@ -46,6 +46,7 @@ class BurpCloneGUI(QMainWindow):
         self.utils = UtilitiesSuite()
         self.repeater = Repeater()
         self.intruder = Intruder()
+        self.passive_scanner = PassiveScanner()
 
         self.setup_ui()
         self.setup_menu()
@@ -129,6 +130,11 @@ class BurpCloneGUI(QMainWindow):
             self.proxy_server.set_intercept_mode(not current)
             self.statusBar().showMessage(f"Intercept: {'ON' if not current else 'OFF'}")
 
+    def toggle_passive_scan(self, checked):
+        if self.proxy_server:
+            self.proxy_server.set_passive_scan(checked)
+            self.statusBar().showMessage(f"Passive Scanner: {'ON' if checked else 'OFF'}")
+
     def show_about(self):
         QMessageBox.about(self, "About Burp Clone",
                          "Burp Clone v1.0\n\nWeb Application Penetration Testing Toolkit\n\nBuilt with Python and PyQt6")
@@ -161,25 +167,26 @@ class ProxyTab(QWidget):
         self.stop_btn.clicked.connect(self.stop_proxy)
         self.intercept_btn = QPushButton("🔄 Intercept: OFF")
         self.intercept_btn.setCheckable(True)
+        self.passive_btn = QPushButton("👁 Passive: OFF")
+        self.passive_btn.setCheckable(True)
+        self.passive_btn.clicked.connect(self.toggle_passive_scan)
         self.clear_btn = QPushButton("Clear")
 
         button_layout.addWidget(self.start_btn)
         button_layout.addWidget(self.stop_btn)
         button_layout.addWidget(self.intercept_btn)
+        button_layout.addWidget(self.passive_btn)
         button_layout.addWidget(self.clear_btn)
         left_layout.addLayout(button_layout)
 
-        layout.addWidget(left_panel, 1)
+        left_layout.addWidget(QLabel("Passive Scan Issues"))
+        self.passive_issues_table = QTableWidget()
+        self.passive_issues_table.setColumnCount(4)
+        self.passive_issues_table.setHorizontalHeaderLabels(["#", "Issue", "Severity", "URL"])
+        left_layout.addWidget(self.passive_issues_table)
 
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-
-        right_layout.addWidget(QLabel("Request Details"))
-        self.request_detail = QTextEdit()
-        self.request_detail.setReadOnly(True)
-        right_layout.addWidget(self.request_detail)
-
-        right_layout.addWidget(QLabel("Response Details"))
+        left_layout.addWidget(QLabel("Request History"))
+        left_layout.addWidget(self.history_table)
         self.response_detail = QTextEdit()
         self.response_detail.setReadOnly(True)
         right_layout.addWidget(self.response_detail)

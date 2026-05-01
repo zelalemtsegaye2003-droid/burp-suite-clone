@@ -10,6 +10,12 @@ from .database import ProxyDatabase
 from .filter import FilterManager
 from .chaining import ProxyChain, ProxyChainer
 
+try:
+    from ..scanner.passive import PassiveScanner
+    HAS_PASSIVE_SCANNER = True
+except:
+    HAS_PASSIVE_SCANNER = False
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -34,6 +40,9 @@ class HTTPSProxy:
         self.filter_manager = filter_manager or FilterManager()
         self.proxy_chain = ProxyChain()
         self.chainer = ProxyChainer(self.proxy_chain)
+        self.passive_scanner = None
+        if HAS_PASSIVE_SCANNER:
+            self.passive_scanner = PassiveScanner()
 
         if db_path:
             self.db = ProxyDatabase(db_path)
@@ -300,6 +309,34 @@ class HTTPSProxy:
 
     def set_intercept_mode(self, enabled: bool):
         self.intercept_mode = enabled
+
+    def set_passive_scan(self, enabled: bool):
+        if self.passive_scanner:
+            self.passive_scanner.enabled = enabled
+            logger.info(f"Passive scanner: {'enabled' if enabled else 'disabled'}")
+
+    def get_passive_issues(self):
+        if self.passive_scanner:
+            return self.passive_scanner.get_issues()
+        return []
+
+    def get_passive_summary(self):
+        if self.passive_scanner:
+            return self.passive_scanner.get_summary()
+        return {}
+
+    def clear_passive_issues(self):
+        if self.passive_scanner:
+            self.passive_scanner.clear_issues()
+
+    def _scan_with_passive(self, request_dict: Dict, response_dict: Dict = None):
+        if not self.passive_scanner or not self.passive_scanner.enabled:
+            return
+
+        self.passive_scanner.scan_request(request_dict)
+
+        if response_dict:
+            self.passive_scanner.scan_response(request_dict, response_dict)
 
     def set_upstream_proxy(self, host: str, port: int,
                           username: Optional[str] = None,
