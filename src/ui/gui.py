@@ -29,6 +29,7 @@ if project_root not in sys.path:
 from src.proxy import HTTPSProxy, ProxyDatabase, PassiveScanner
 from src.spider import Spider, CrawlConfig
 from src.scanner import ScannerEngine, get_all_scanners, IssueType, Severity
+from src.scanner.report import ReportGenerator
 from src.intruder import Intruder, AttackMode
 from src.repeater import Repeater, RepeaterRequest
 from src.utils import UtilitiesSuite
@@ -370,6 +371,31 @@ class ScannerTab(QWidget):
         self.issue_detail.setReadOnly(True)
         detail_layout.addWidget(self.issue_detail)
         layout.addLayout(detail_layout)
+
+        report_layout = QHBoxLayout()
+        self.generate_report_btn = QPushButton("📄 Generate Report")
+        self.generate_report_btn.clicked.connect(self.generate_report)
+        report_layout.addWidget(self.generate_report_btn)
+        report_layout.addStretch()
+        layout.addLayout(report_layout)
+
+    def generate_report(self):
+        issues = []
+        for i in range(self.results_table.rowCount()):
+            # Get issues from scanner
+            pass
+
+        if not hasattr(self, 'scanner_engine') or not self.scanner_engine.issue_tracker.issues:
+            QMessageBox.warning(self, "No Data", "Run a scan first to generate a report")
+            return
+
+        generator = ReportGenerator()
+        target_url = self.url_input.text() or "Unknown"
+        generator.set_target("Scan Report", target_url)
+        generator.add_issues(self.scanner_engine.issue_tracker.issues)
+
+        html_file = generator.generate_html("security_report.html")
+        QMessageBox.information(self, "Report Generated", f"Report saved to:\n{html_file}")
 
     def start_scan(self):
         url = self.url_input.text()
